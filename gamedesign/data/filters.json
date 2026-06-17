@@ -1,0 +1,52 @@
+{
+  "title_keywords": [
+    "hvac",
+    "teacher",
+    "teaching",
+    "professor",
+    "faculty",
+    "adjunct",
+    "senior",
+    "sr.",
+    "lead ",
+    "principal",
+    "manager",
+    "director",
+    "supervisor",
+    "level ii",
+    "level iii",
+    "level 2",
+    "level 3"
+  ],
+  "medical_keywords": [],
+  "level_tokens": [
+    "ii",
+    "iii"
+  ],
+  "cities": [
+    "bartlesville",
+    "muskogee",
+    "claremore",
+    "stillwater",
+    "oklahoma city",
+    "norman",
+    "enid",
+    "lawton"
+  ],
+  "metro": [
+    "Tulsa",
+    "Broken Arrow",
+    "Owasso",
+    "Bixby",
+    "Sand Springs",
+    "Jenks",
+    "Catoosa",
+    "Sapulpa",
+    "Glenpool",
+    "Collinsville",
+    "Coweta",
+    "Wagoner",
+    "Skiatook"
+  ],
+  "remote_ok": true
+}

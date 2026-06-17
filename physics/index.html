@@ -1,0 +1,47 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="theme-color" content="#0b1020">
+<link rel="manifest" href="manifest.webmanifest">
+<link rel="apple-touch-icon" href="icons/icon-192.png">
+<link rel="stylesheet" href="styles.css">
+<title>JobScout</title>
+</head>
+<body>
+<header class="topbar">
+  <div class="brand"><span class="logo">◉</span> JobScout</div>
+  <div class="topactions">
+    <button id="settingsBtn" class="ghost" title="Filters" aria-label="Filters">⚙</button>
+    <button id="refreshBtn" class="ghost" title="Reload" aria-label="Reload">⟳</button>
+  </div>
+</header>
+
+<section class="briefing" id="briefing"></section>
+
+<nav class="filters" id="filters">
+  <button class="chip active" data-f="all">All</button>
+  <button class="chip" data-f="tulsa">Tulsa metro</button>
+  <button class="chip" data-f="remote">Remote</button>
+  <button class="chip" data-f="entry">Entry-level</button>
+  <button class="chip" data-f="strong">Physics core</button>
+  <button class="chip" data-f="saved">★ Saved</button>
+</nav>
+
+<main id="list" class="list"></main>
+
+<div id="sheet" class="sheet hidden">
+  <div class="sheet-card" id="sheetCard"></div>
+  <button class="sheet-close" id="sheetClose">Close</button>
+</div>
+
+<div id="settings" class="sheet hidden">
+  <div class="sheet-card" id="settingsCard"></div>
+  <button class="sheet-close" id="settingsClose">Done</button>
+</div>
+
+<footer class="foot" id="foot"></footer>
+<script src="app.js"></script>
+</body>
+</html>
