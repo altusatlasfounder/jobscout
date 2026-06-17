@@ -1,7 +1,14 @@
 const SAVED_KEY = "jobscout_saved_v1";
 const PREF_KEY  = "jobscout_prefs_v1";
 let JOBS = [], DEF = {title_keywords:[],medical_keywords:[],level_tokens:[],cities:[],metro:[],remote_ok:true};
-let FILTER = "all";
+/* Built-in filter chips are read from the static HTML so each edition keeps its
+   own labels (e.g. "Physics core" vs "Game core"). ACTIVE holds the toggled-on
+   filters; empty set == "All". Filters combine with AND. */
+const BUILTIN = [...document.querySelectorAll("#filters .chip")]
+  .map(c=>({f:c.dataset.f, label:(c.textContent||"").trim()}))
+  .filter(b=>b.f && b.f!=="all");
+const ALL_LABEL = (document.querySelector('#filters .chip[data-f="all"]')||{}).textContent || "All";
+const ACTIVE = new Set();
 const saved = new Set(JSON.parse(localStorage.getItem(SAVED_KEY) || "[]"));
 const prefs = Object.assign(
   {disabled:{kw:[],city:[]}, added:{kw:[],city:[]}, remoteOnly:false, showHidden:false},
@@ -9,6 +16,7 @@ const prefs = Object.assign(
 
 const el = (s) => document.querySelector(s);
 const lc = (a) => (a||[]).map(x=>x.toLowerCase());
+const esc = (s) => String(s).replace(/[&<>"']/g,c=>({"&":"&amp;","<":"&lt;",">":"&gt;","\"":"&quot;","'":"&#39;"}[c]));
 function savePrefs(){ localStorage.setItem(PREF_KEY, JSON.stringify(prefs)); }
 function persistSaved(){ localStorage.setItem(SAVED_KEY, JSON.stringify([...saved])); }
 function keyOf(j){ return (j.company_name + "|" + j.title).toLowerCase(); }
@@ -54,15 +62,42 @@ function excludeReason(j){
   return "";
 }
 
+/* a job passes the row when it satisfies EVERY active filter (AND) */
+function passesFilter(j,f){
+  if(f==="tulsa") return isTulsa(j);
+  if(f==="remote") return j.remote_type==="remote";
+  if(f==="entry") return j.seniority==="entry"||j.seniority==="intern"||(j.sub_scores&&j.sub_scores.entry>=12);
+  if(f==="strong") return j.sub_scores && j.sub_scores.title>=17.5;
+  if(f==="saved") return saved.has(keyOf(j));
+  return true;
+}
 function matches(j){
   if(prefs.remoteOnly && j.remote_type!=="remote") return false;
-  if(FILTER==="all") return true;
-  if(FILTER==="saved") return saved.has(keyOf(j));
-  if(FILTER==="tulsa") return isTulsa(j);
-  if(FILTER==="remote") return j.remote_type==="remote";
-  if(FILTER==="entry") return j.seniority==="entry"||j.seniority==="intern"||(j.sub_scores&&j.sub_scores.entry>=12);
-  if(FILTER==="strong") return j.sub_scores && j.sub_scores.title>=17.5;
+  for(const f of ACTIVE){ if(!passesFilter(j,f)) return false; }
   return true;
+}
+
+/* rebuild the filter row: built-in toggle chips + a divider + custom-criteria
+   chips (added/removed in the gear editor) shown in a visually distinct style */
+function customChips(){
+  const out=[];
+  if(prefs.remoteOnly)
+    out.push(`<button class="chip cust cust-on" data-cust="remoteOnly" title="Remove">Remote only ✕</button>`);
+  for(const w of prefs.added.kw)
+    out.push(`<button class="chip cust cust-hide" data-cust="addkw" data-val="${esc(w)}" title="Stop hiding">Hiding “${esc(w)}” ✕</button>`);
+  for(const c of prefs.added.city)
+    out.push(`<button class="chip cust cust-hide" data-cust="addcity" data-val="${esc(c)}" title="Stop hiding">Hiding “${esc(c)}” ✕</button>`);
+  for(const w of prefs.disabled.kw)
+    out.push(`<button class="chip cust cust-show" data-cust="delkw" data-val="${esc(w)}" title="Restore default">Showing “${esc(w)}” ✕</button>`);
+  for(const c of prefs.disabled.city)
+    out.push(`<button class="chip cust cust-show" data-cust="delcity" data-val="${esc(c)}" title="Restore default">Showing “${esc(c)}” ✕</button>`);
+  return out;
+}
+function renderFilters(){
+  const builtin=[`<button class="chip ${ACTIVE.size===0?"active":""}" data-f="all">${esc(ALL_LABEL.trim())}</button>`]
+    .concat(BUILTIN.map(b=>`<button class="chip ${ACTIVE.has(b.f)?"active":""}" data-f="${b.f}">${esc(b.label)}</button>`));
+  const cust=customChips();
+  el("#filters").innerHTML = builtin.join("") + (cust.length ? `<span class="chip-div" aria-hidden="true"></span>`+cust.join("") : "");
 }
 
 function briefing(){
@@ -104,6 +139,7 @@ function card(j){
 }
 
 function render(){
+  renderFilters();
   briefing();
   let items=JOBS.filter(matches);
   if(!prefs.showHidden) items=items.filter(j=>!excludeReason(j));
@@ -149,7 +185,7 @@ function openSettings(){
     + prefs.added.city.map(c=>chip(c,false,false,"city")).join("");
   el("#settingsCard").innerHTML=`
     <h2>Filters</h2>
-    <p class="jc-co">Edits apply instantly and save on this device.</p>
+    <p class="jc-co">Edits apply instantly, save on this device, and appear as chips on the filter row.</p>
     <div class="set-sec"><h3>Excluded title words</h3>
       <p class="hint">Jobs whose title contains any of these are hidden. Tap × to toggle a default off, or add your own.</p>
       <div class="chiplist" id="kwlist">${wordChips}</div>
@@ -177,6 +213,17 @@ function toggleDefault(kind,val){
   savePrefs(); openSettings(); render();
 }
 
+/* custom-criteria chips on the filter row remove/restore the matching pref */
+function removeCustom(action,val){
+  const drop=(arr)=>{ const i=arr.findIndex(x=>x.toLowerCase()===(val||"").toLowerCase()); if(i>=0)arr.splice(i,1); };
+  if(action==="remoteOnly") prefs.remoteOnly=false;
+  else if(action==="addkw") drop(prefs.added.kw);
+  else if(action==="addcity") drop(prefs.added.city);
+  else if(action==="delkw") drop(prefs.disabled.kw);
+  else if(action==="delcity") drop(prefs.disabled.city);
+  savePrefs(); render();
+}
+
 document.addEventListener("click",(e)=>{
   const sw=e.target.closest("[data-sw]");
   if(sw){ prefs[sw.dataset.sw]=!prefs[sw.dataset.sw]; savePrefs(); openSettings(); render(); return; }
@@ -197,9 +244,16 @@ el("#sheet").onclick=(e)=>{ if(e.target.id==="sheet") el("#sheet").classList.add
 el("#settingsBtn").onclick=openSettings;
 el("#settingsClose").onclick=()=>el("#settings").classList.add("hidden");
 el("#settings").onclick=(e)=>{ if(e.target.id==="settings") el("#settings").classList.add("hidden"); };
-el("#filters").addEventListener("click",(e)=>{ const c=e.target.closest(".chip"); if(!c)return;
-  document.querySelectorAll(".chip").forEach(x=>x.classList.remove("active"));
-  c.classList.add("active"); FILTER=c.dataset.f; render(); });
+/* filter row: custom chips remove/restore criteria; built-in chips toggle (AND) */
+el("#filters").addEventListener("click",(e)=>{
+  const cust=e.target.closest("[data-cust]");
+  if(cust){ removeCustom(cust.dataset.cust, cust.dataset.val); return; }
+  const c=e.target.closest(".chip"); if(!c||!c.dataset.f) return;
+  const f=c.dataset.f;
+  if(f==="all") ACTIVE.clear();
+  else { ACTIVE.has(f) ? ACTIVE.delete(f) : ACTIVE.add(f); }
+  render();
+});
 el("#refreshBtn").onclick=()=>load(true);
 
 async function load(bust){
