@@ -168,7 +168,8 @@ function openSheet(j){
     <p class="desc">${(j.description||"No description.").slice(0,1200)}</p>
     ${note}
     ${btn}
-    <p class="foot" style="padding:12px 0 0">Source: ${j.source}</p>`;
+    <p class="foot" style="padding:12px 0 0">Source: ${j.source}</p>
+    <button class="closebtn" data-close="sheet">Close</button>`;
   el("#sheet").classList.remove("hidden");
 }
 
@@ -200,7 +201,8 @@ function openSettings(){
       <div class="toggle"><span>Remote-only</span><button class="switch ${prefs.remoteOnly?"on":""}" data-sw="remoteOnly"><i></i></button></div>
       <div class="toggle"><span>Show hidden jobs (dimmed)</span><button class="switch ${prefs.showHidden?"on":""}" data-sw="showHidden"><i></i></button></div>
     </div>
-    <button class="resetbtn" id="resetFilters">Reset filters to defaults</button>`;
+    <button class="resetbtn" id="resetFilters">Reset filters to defaults</button>
+    <button class="closebtn" data-close="settings">Close</button>`;
   el("#settings").classList.remove("hidden");
 }
 function toggleDefault(kind,val){
@@ -225,6 +227,8 @@ function removeCustom(action,val){
 }
 
 document.addEventListener("click",(e)=>{
+  const cl=e.target.closest("[data-close]");
+  if(cl){ const t=el("#"+cl.dataset.close); if(t) t.classList.add("hidden"); return; }
   const sw=e.target.closest("[data-sw]");
   if(sw){ prefs[sw.dataset.sw]=!prefs[sw.dataset.sw]; savePrefs(); openSettings(); render(); return; }
   const tog=e.target.closest("[data-tog]");
