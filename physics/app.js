@@ -8,19 +8,23 @@ const BUILTIN = [...document.querySelectorAll("#filters .chip")]
   .map(c=>({f:c.dataset.f, label:(c.textContent||"").trim()}))
   .filter(b=>b.f && b.f!=="all");
 const ALL_LABEL = (document.querySelector('#filters .chip[data-f="all"]')||{}).textContent || "All";
+const PROFILE_CORE = ((BUILTIN.find(b=>b.f==="strong")||{}).label) || "Core";
 const ACTIVE = new Set();
 const saved = new Set(JSON.parse(localStorage.getItem(SAVED_KEY) || "[]"));
 const prefs = Object.assign(
-  {disabled:{kw:[],city:[]}, added:{kw:[],city:[]}, include:{kw:[],city:[]}, skills:[],
+  {disabled:{kw:[],city:[]}, added:{kw:[],city:[]}, include:{kw:[],city:[]}, skills:[], coreWords:[], coreLabel:"",
    off:{addkw:[],addcity:[],inckw:[],inccity:[],skill:[]}, coreMin:17.5, remoteOnly:false, showHidden:false},
   JSON.parse(localStorage.getItem(PREF_KEY) || "{}"));
 /* backfill nested shapes for prefs saved by older versions */
-prefs.disabled = Object.assign({kw:[],city:[]}, prefs.disabled||{});
-prefs.added    = Object.assign({kw:[],city:[]}, prefs.added||{});
-prefs.include  = Object.assign({kw:[],city:[]}, prefs.include||{});
-prefs.off      = Object.assign({addkw:[],addcity:[],inckw:[],inccity:[],skill:[]}, prefs.off||{});
-prefs.skills   = Array.isArray(prefs.skills) ? prefs.skills : [];
+prefs.disabled  = Object.assign({kw:[],city:[]}, prefs.disabled||{});
+prefs.added     = Object.assign({kw:[],city:[]}, prefs.added||{});
+prefs.include   = Object.assign({kw:[],city:[]}, prefs.include||{});
+prefs.off       = Object.assign({addkw:[],addcity:[],inckw:[],inccity:[],skill:[]}, prefs.off||{});
+prefs.skills    = Array.isArray(prefs.skills) ? prefs.skills : [];
+prefs.coreWords = Array.isArray(prefs.coreWords) ? prefs.coreWords : [];
+if(typeof prefs.coreLabel!=="string") prefs.coreLabel="";
 if(prefs.coreMin==null) prefs.coreMin=17.5;
+const coreLabel = () => (prefs.coreLabel||"").trim() || PROFILE_CORE;
 
 const el = (s) => document.querySelector(s);
 const lc = (a) => (a||[]).map(x=>x.toLowerCase());
@@ -68,6 +72,14 @@ function skillRe(term){ const e=String(term).toLowerCase().trim().replace(/[.*+?
   return new RegExp("(^|[^a-z0-9+#.])"+e+"([^a-z0-9+#.]|$)","i"); }
 function activeSkills(){ const off=new Set(lc(prefs.off.skill)); return prefs.skills.filter(s=>!off.has(s.toLowerCase())); }
 
+/* the "core" chip test: custom title words if the user set any, otherwise the
+   profile's automatic title-relevance at the chosen strictness. */
+function coreTest(j){
+  const cw=prefs.coreWords||[];
+  if(cw.length){ const t=(j.title||"").toLowerCase(); return cw.some(w=>t.includes(String(w).toLowerCase())); }
+  return !!(j.sub_scores && j.sub_scores.title>=(prefs.coreMin!=null?prefs.coreMin:17.5));
+}
+
 /* client-side exclusion — mirrors engine/filters.py so edits take effect live */
 function excludeReason(j){
   const title=(j.title||"").toLowerCase();
@@ -104,7 +116,7 @@ function passesFilter(j,f){
   if(f==="tulsa") return isTulsa(j);
   if(f==="remote") return j.remote_type==="remote";
   if(f==="entry") return j.seniority==="entry"||j.seniority==="intern"||(j.sub_scores&&j.sub_scores.entry>=12);
-  if(f==="strong") return j.sub_scores && j.sub_scores.title>=(prefs.coreMin!=null?prefs.coreMin:17.5);
+  if(f==="strong") return coreTest(j);
   if(f==="saved") return saved.has(keyOf(j));
   return true;
 }
@@ -136,11 +148,18 @@ function customChips(){
 }
 function renderFilters(){
   const builtin=[`<button class="chip ${ACTIVE.size===0?"active":""}" data-f="all">${esc(ALL_LABEL.trim())}</button>`]
-    .concat(BUILTIN.map(b=>`<button class="chip ${ACTIVE.has(b.f)?"active":""}" data-f="${b.f}">${esc(b.label)}</button>`));
+    .concat(BUILTIN.map(b=>{
+      const lab=(b.f==="strong") ? coreLabel() : b.label;
+      return `<button class="chip ${ACTIVE.has(b.f)?"active":""}" data-f="${b.f}">${esc(lab)}</button>`;
+    }));
   const cust=customChips();
   el("#filters").innerHTML = builtin.join("") + (cust.length ? `<span class="chip-div" aria-hidden="true"></span>`+cust.join("") : "");
   const hintEl=el("#filterhint");
-  if(hintEl){ hintEl.textContent = cust.length ? "Tap a custom pill to mute or un-mute it · ✕ removes it" : ""; hintEl.style.display = cust.length ? "" : "none"; }
+  if(hintEl){
+    const base="Tap a chip to filter — solid = on, tap again to turn it off. Chips stack (AND).";
+    hintEl.innerHTML = cust.length ? base+" Custom pills: tap to mute · ✕ to remove." : base;
+    hintEl.style.display="";
+  }
 }
 
 function briefing(){
@@ -239,35 +258,53 @@ function openSettings(){
   const sugg=(DEF.profile_skills||[]).filter(s=>!has(prefs.skills,s)).slice(0,12)
     .map(s=>`<button class="suggb" data-skilladd="${esc(s)}">+ ${esc(s)}</button>`).join("");
   const suggBlock = sugg ? `<div class="suggrow"><span class="hint2">Suggestions:</span>${sugg}</div>` : "";
-  const coreLabel=((BUILTIN.find(b=>b.f==="strong")||{}).label)||"Core";
+
+  /* ----- core chip builder ----- */
+  const clabel=coreLabel();
   const coreEx=(DEF.core_titles||[]).slice(0,3).join(", ");
   const bridgeEx=(DEF.bridge_titles||[]).slice(0,2).join(", ");
-  const desc={all:"Clears all filters — shows everything.",tulsa:"On-site roles in the Tulsa metro.",
-    remote:"Fully remote roles.",entry:"Junior / new-grad-friendly roles.",
-    strong:coreLabel+": job titles that closely match your field (see below).",
-    saved:"Jobs you’ve starred."};
-  const legend=[{f:"all",label:ALL_LABEL.trim()},...BUILTIN]
-    .map(b=>`<div class="lg"><b>${esc(b.label)}</b><span>${esc(desc[b.f]||"")}</span></div>`).join("");
   const cm=prefs.coreMin!=null?prefs.coreMin:17.5;
   const seg=[["Looser",9],["Balanced",17.5],["Stricter",21.5]]
     .map(([t,v])=>`<button class="segb ${Math.abs(cm-v)<0.01?"on":""}" data-core="${v}">${t}</button>`).join("");
   const lvl={
-    "9":{n:"Looser",t:`the widest net — shows any job that mentions your field <i>somewhere</i> in the posting, even when the job title isn’t an obvious match. More results, looser fit.`},
+    "9":{n:"Looser",t:`the widest net — shows any job that mentions your field <i>somewhere</i> in the posting, even when the title isn’t an obvious match.`},
     "17.5":{n:"Balanced",t:`a sensible middle — jobs whose <b>title</b> is clearly in your field${coreEx?` (e.g. ${esc(coreEx)})`:""} or a close cousin${bridgeEx?` (e.g. ${esc(bridgeEx)})`:""}.`},
-    "21.5":{n:"Stricter",t:`only the closest matches — jobs whose <b>title</b> is squarely your field${coreEx?` (e.g. ${esc(coreEx)})`:""}. Fewer results, tightest fit.`}};
+    "21.5":{n:"Stricter",t:`only the closest matches — jobs whose <b>title</b> is squarely your field${coreEx?` (e.g. ${esc(coreEx)})`:""}.`}};
   const cur=lvl[String(cm)]||lvl["17.5"];
+  const coreWordChips = prefs.coreWords.length
+    ? prefs.coreWords.map(w=>`<span class="fchip core"><span>${esc(w)}</span><b data-corewdel data-val="${esc(w)}">×</b></span>`).join("")
+    : `<span class="hint">none yet — using the automatic match below</span>`;
+  const matchBlock = prefs.coreWords.length
+    ? `<p class="hint">Using your custom title words above. Remove them all to return to the automatic match.</p>`
+    : `<p class="sublabel">…or use the automatic match — how strict?</p>
+       <div class="seg">${seg}</div>
+       <p class="hint"><b>${cur.n}</b> — ${cur.t}</p>`;
+  const coreCount = JOBS.filter(j=>!hiddenReason(j) && coreTest(j)).length;
+  const coreExHint = (DEF.core_titles||["optics"])[0] || "optics";
+
+  const desc={all:"Clears all filters — shows everything.",tulsa:"On-site roles in the Tulsa metro.",
+    remote:"Fully remote roles.",entry:"Junior / new-grad-friendly roles.",
+    strong:clabel+": jobs that closely match your field (customize below).",
+    saved:"Jobs you’ve starred."};
+  const legend=[{f:"all",label:ALL_LABEL.trim()},...BUILTIN]
+    .map(b=>{const lab=(b.f==="strong")?clabel:b.label; return `<div class="lg"><b>${esc(lab)}</b><span>${esc(desc[b.f]||"")}</span></div>`;}).join("");
+
   el("#settingsCard").innerHTML=`
     <h2>Filters</h2>
-    <p class="jc-co">Tap chips on the home screen to filter — they combine. Changes here save on this device and show as pills on the filter row.</p>
+    <p class="jc-co">Tap chips on the home screen to filter — solid = on, and they stack. Changes here save on this device and show as pills on the filter row.</p>
 
     <div class="set-group">
       <h3 class="grp">What the chips mean</h3>
       <div class="legend">${legend}</div>
       <div class="core-edit">
-        <label>The “${esc(coreLabel)}” chip shows jobs that match your field.</label>
-        <p class="hint">Choose how strict that match should be:</p>
-        <div class="seg">${seg}</div>
-        <p class="core-desc"><b>${cur.n}</b> — ${cur.t}</p>
+        <label>Customize the “${esc(clabel)}” chip</label>
+        <p class="hint">This chip narrows the list to jobs that match your field. Rename it, or define your own title words — it updates on the chip row.</p>
+        <div class="addrow"><input id="corename" placeholder="rename chip — e.g. My focus" value="${esc(prefs.coreLabel||"")}"><button data-corename>Save</button></div>
+        <p class="sublabel">Count a job as “${esc(clabel)}” when its title contains:</p>
+        <div class="chiplist">${coreWordChips}</div>
+        <div class="addrow"><input id="corewordadd" placeholder="title word — e.g. ${esc(coreExHint)}"><button data-add="coreword">Add</button></div>
+        ${matchBlock}
+        <p class="core-desc">≈ <b>${coreCount}</b> of the jobs loaded count as “${esc(clabel)}” right now. Tap that chip on the home screen to show only those.</p>
       </div>
     </div>
 
@@ -346,6 +383,10 @@ document.addEventListener("click",(e)=>{
   if(sw){ prefs[sw.dataset.sw]=!prefs[sw.dataset.sw]; savePrefs(); openSettings(); render(); return; }
   const core=e.target.closest("[data-core]");
   if(core){ prefs.coreMin=parseFloat(core.dataset.core); savePrefs(); openSettings(); render(); return; }
+  const cname=e.target.closest("[data-corename]");
+  if(cname){ const inp=el("#corename"); prefs.coreLabel=(inp&&inp.value||"").trim(); savePrefs(); openSettings(); render(); return; }
+  const cwdel=e.target.closest("[data-corewdel]");
+  if(cwdel){ drop(prefs.coreWords, cwdel.dataset.val); savePrefs(); openSettings(); render(); return; }
   const tog=e.target.closest("[data-tog]");
   if(tog){ toggleDefault(tog.dataset.tog,tog.dataset.val); return; }
   const incdel=e.target.closest("[data-incdel]");
@@ -359,7 +400,7 @@ document.addEventListener("click",(e)=>{
     savePrefs(); openSettings(); render(); return; }
   const add=e.target.closest("[data-add]");
   if(add){ const kind=add.dataset.add;
-    const inputId={kw:"#kwadd",city:"#cityadd",inckw:"#inckwadd",inccity:"#inccityadd",skill:"#skilladd"}[kind];
+    const inputId={kw:"#kwadd",city:"#cityadd",inckw:"#inckwadd",inccity:"#inccityadd",skill:"#skilladd",coreword:"#corewordadd"}[kind];
     const inp=el(inputId); const v=(inp&&inp.value||"").trim();
     if(v){
       if(kind==="kw") prefs.added.kw.push(v);
@@ -367,10 +408,12 @@ document.addEventListener("click",(e)=>{
       else if(kind==="inckw") prefs.include.kw.push(v);
       else if(kind==="inccity") prefs.include.city.push(v);
       else if(kind==="skill"){ if(!has(prefs.skills,v)) prefs.skills.push(v); }
+      else if(kind==="coreword"){ if(!has(prefs.coreWords,v)) prefs.coreWords.push(v); }
       savePrefs(); openSettings(); render();
     } return; }
   if(e.target.id==="resetFilters"){ prefs.disabled={kw:[],city:[]}; prefs.added={kw:[],city:[]};
-    prefs.include={kw:[],city:[]}; prefs.skills=[]; prefs.off={addkw:[],addcity:[],inckw:[],inccity:[],skill:[]};
+    prefs.include={kw:[],city:[]}; prefs.skills=[]; prefs.coreWords=[]; prefs.coreLabel="";
+    prefs.off={addkw:[],addcity:[],inckw:[],inccity:[],skill:[]};
     prefs.coreMin=17.5; prefs.remoteOnly=false; prefs.showHidden=false; savePrefs(); openSettings(); render(); return; }
   const star=e.target.closest("[data-star]");
   if(star){ const k=star.dataset.star; saved.has(k)?saved.delete(k):saved.add(k); persistSaved(); render(); return; }

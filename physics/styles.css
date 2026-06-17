@@ -105,6 +105,8 @@ body{margin:0;background:linear-gradient(180deg,#0b1020,#0a0e1c 40%);color:var(-
 .sub{margin:10px 0}
 .sub>label{display:block;font-size:12px;color:var(--txt);margin:0 0 6px;font-weight:600}
 .hint2{font-weight:400;color:#5b659a}
+.sublabel{font-size:12px;color:var(--txt);font-weight:600;margin:12px 0 6px}
+.fchip.core{border-color:var(--accent);color:var(--accent)}
 .addrow{display:flex;gap:8px}
 .addrow input{flex:1;background:#0e1430;border:1px solid var(--line);color:var(--txt);
   border-radius:10px;padding:10px;font-size:13px}
