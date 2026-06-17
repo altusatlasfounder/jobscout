@@ -32,6 +32,7 @@ body{margin:0;background:linear-gradient(180deg,#0b1020,#0a0e1c 40%);color:var(-
 .chip.cust.cust-on{background:#15203f;border-color:var(--accent2);color:var(--accent2)}
 .chip.cust.cust-hide{background:#2a1620;border-color:#7a3b52;color:#ffb3c7}
 .chip.cust.cust-inc{background:#13261f;border-color:#2e7d5b;color:#7ef0c2}
+.chip.cust.cust-skill{background:#1c1633;border-color:#6a4fae;color:#c9b6ff}
 .chip.cust.cust-show{background:#2a2410;border-color:#7a6a2e;color:#ffe39a}
 .list{display:flex;flex-direction:column;gap:12px;padding:0 16px}
 .jobcard{background:var(--card);border:1px solid var(--line);border-radius:16px;padding:14px;
@@ -84,6 +85,9 @@ body{margin:0;background:linear-gradient(180deg,#0b1020,#0a0e1c 40%);color:var(-
 .fchip.off{opacity:.4;text-decoration:line-through}
 .fchip b{cursor:pointer;color:var(--bad);font-weight:700}
 .fchip.inc{border-color:#3b7a52}
+.fchip.skill{border-color:#6a4fae}
+.suggrow{margin-top:8px;display:flex;flex-wrap:wrap;gap:6px;align-items:center}
+.suggb{background:var(--bg2);border:1px dashed var(--line);color:var(--accent2);border-radius:8px;padding:4px 9px;font-size:11px;font-weight:600;cursor:pointer}
 .inc-sec h3{color:#7ef0c2}
 .set-group{margin:16px 0;padding-top:12px;border-top:1px solid var(--line)}
 .set-group .grp{font-size:13px;color:var(--accent);margin:0 0 8px;font-weight:700}

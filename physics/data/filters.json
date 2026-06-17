@@ -80,5 +80,52 @@
     "Wagoner",
     "Skiatook"
   ],
-  "remote_ok": true
+  "remote_ok": true,
+  "core_titles": [
+    "physicist",
+    "physics",
+    "research assistant",
+    "research associate",
+    "lab technician",
+    "laboratory technician",
+    "optical",
+    "optics",
+    "photonics",
+    "instrumentation",
+    "metrology",
+    "calibration"
+  ],
+  "bridge_titles": [
+    "test engineer",
+    "quality engineer",
+    "data analyst",
+    "data scientist",
+    "systems engineer",
+    "process engineer",
+    "simulation",
+    "rf engineer",
+    "controls",
+    "applications engineer",
+    "field engineer",
+    "physics teacher",
+    "stem",
+    "scientific programmer"
+  ],
+  "profile_skills": [
+    "python",
+    "matlab",
+    "data analysis",
+    "labview",
+    "excel",
+    "statistics",
+    "instrumentation",
+    "optics",
+    "electronics",
+    "linux",
+    "sql",
+    "numpy",
+    "signal processing",
+    "cad",
+    "soldering"
+  ]
 }

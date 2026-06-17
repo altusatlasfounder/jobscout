@@ -1,6 +1,6 @@
 const SAVED_KEY = "jobscout_saved_v1";
 const PREF_KEY  = "jobscout_prefs_v1";
-let JOBS = [], DEF = {title_keywords:[],medical_keywords:[],level_tokens:[],cities:[],metro:[],remote_ok:true};
+let JOBS = [], DEF = {title_keywords:[],medical_keywords:[],level_tokens:[],cities:[],metro:[],remote_ok:true,core_titles:[],bridge_titles:[],profile_skills:[]};
 /* Built-in filter chips are read from the static HTML so each edition keeps its
    own labels (e.g. "Physics core" vs "Game core"). ACTIVE holds the toggled-on
    filters; empty set == "All". Filters combine with AND. */
@@ -11,14 +11,16 @@ const ALL_LABEL = (document.querySelector('#filters .chip[data-f="all"]')||{}).t
 const ACTIVE = new Set();
 const saved = new Set(JSON.parse(localStorage.getItem(SAVED_KEY) || "[]"));
 const prefs = Object.assign(
-  {disabled:{kw:[],city:[]}, added:{kw:[],city:[]}, include:{kw:[],city:[]},
-   off:{addkw:[],addcity:[],inckw:[],inccity:[]}, coreMin:17.5, remoteOnly:false, showHidden:false},
+  {disabled:{kw:[],city:[]}, added:{kw:[],city:[]}, include:{kw:[],city:[]}, skills:[],
+   off:{addkw:[],addcity:[],inckw:[],inccity:[],skill:[]}, coreMin:17.5, remoteOnly:false, showHidden:false},
   JSON.parse(localStorage.getItem(PREF_KEY) || "{}"));
 /* backfill nested shapes for prefs saved by older versions */
 prefs.disabled = Object.assign({kw:[],city:[]}, prefs.disabled||{});
 prefs.added    = Object.assign({kw:[],city:[]}, prefs.added||{});
 prefs.include  = Object.assign({kw:[],city:[]}, prefs.include||{});
-prefs.off      = Object.assign({addkw:[],addcity:[],inckw:[],inccity:[]}, prefs.off||{});
+prefs.off      = Object.assign({addkw:[],addcity:[],inckw:[],inccity:[],skill:[]}, prefs.off||{});
+prefs.skills   = Array.isArray(prefs.skills) ? prefs.skills : [];
+if(prefs.coreMin==null) prefs.coreMin=17.5;
 
 const el = (s) => document.querySelector(s);
 const lc = (a) => (a||[]).map(x=>x.toLowerCase());
@@ -60,6 +62,11 @@ function effCities(){
 }
 function incWords(){ const off=new Set(lc(prefs.off.inckw)); return lc(prefs.include.kw).filter(w=>!off.has(w)); }
 function incCities(){ const off=new Set(lc(prefs.off.inccity)); return lc(prefs.include.city).filter(c=>!off.has(c)); }
+/* match a skill term as a whole token, but treat + # . as part of it so
+   "c++"/"c#"/".net" match exactly and "java" does not match "javascript". */
+function skillRe(term){ const e=String(term).toLowerCase().trim().replace(/[.*+?^${}()|[\]\\]/g,"\\$&");
+  return new RegExp("(^|[^a-z0-9+#.])"+e+"([^a-z0-9+#.]|$)","i"); }
+function activeSkills(){ const off=new Set(lc(prefs.off.skill)); return prefs.skills.filter(s=>!off.has(s.toLowerCase())); }
 
 /* client-side exclusion — mirrors engine/filters.py so edits take effect live */
 function excludeReason(j){
@@ -84,7 +91,13 @@ function includeReason(j){
   const hit = iw.some(w=>title.includes(w)) || ic.some(c=>loc.includes(c));
   return hit ? "" : "no required keyword";
 }
-function hiddenReason(j){ return excludeReason(j) || includeReason(j); }
+/* required skills: searches the whole posting (title + description) */
+function skillsReason(j){
+  const sk=activeSkills(); if(!sk.length) return "";
+  const hay=((j.title||"")+" "+(j.description||"")).toLowerCase();
+  return sk.some(s=>skillRe(s).test(hay)) ? "" : "missing required skill";
+}
+function hiddenReason(j){ return excludeReason(j) || includeReason(j) || skillsReason(j); }
 
 /* a job passes the row when it satisfies EVERY active filter (AND) */
 function passesFilter(j,f){
@@ -104,9 +117,8 @@ function matches(j){
 /* rebuild the filter row: built-in toggle chips + a divider + custom-criteria
    chips. Custom chips: tap body to pause/resume, tap ✕ to delete entirely. */
 function custChip(cls,kind,val,label,toggleable){
-  const paused = toggleable && (
-    (kind==="addkw"&&has(prefs.off.addkw,val)) || (kind==="addcity"&&has(prefs.off.addcity,val)) ||
-    (kind==="inckw"&&has(prefs.off.inckw,val)) || (kind==="inccity"&&has(prefs.off.inccity,val)));
+  const offmap={addkw:prefs.off.addkw,addcity:prefs.off.addcity,inckw:prefs.off.inckw,inccity:prefs.off.inccity,skill:prefs.off.skill};
+  const paused = toggleable && offmap[kind] && has(offmap[kind],val);
   const main = toggleable ? `data-custtoggle="${kind}" data-val="${esc(val)}"` : `data-custdel="${kind}" data-val="${esc(val)}"`;
   return `<button class="chip cust ${cls} ${paused?"paused":""}" ${main} title="${toggleable?"Tap to turn on/off":"Tap to remove"}">${label}<b class="px" data-custdel="${kind}" data-val="${esc(val)}" title="Remove">✕</b></button>`;
 }
@@ -117,6 +129,7 @@ function customChips(){
   for(const c of prefs.added.city)  out.push(custChip("cust-hide","addcity",c,`Hiding “${esc(c)}”`,true));
   for(const w of prefs.include.kw)  out.push(custChip("cust-inc","inckw",w,`“${esc(w)}”`,true));
   for(const c of prefs.include.city)out.push(custChip("cust-inc","inccity",c,`“${esc(c)}”`,true));
+  for(const s of prefs.skills)      out.push(custChip("cust-skill","skill",s,`🛠 ${esc(s)}`,true));
   for(const w of prefs.disabled.kw) out.push(custChip("cust-show","delkw",w,`Showing “${esc(w)}”`,false));
   for(const c of prefs.disabled.city)out.push(custChip("cust-show","delcity",c,`Showing “${esc(c)}”`,false));
   return out;
@@ -210,6 +223,9 @@ function chip(label,isDefault,off,kind){
 function incChipHTML(label,kind){
   return `<span class="fchip inc"><span>${esc(label)}</span><b data-incdel="${kind}" data-val="${esc(label)}">×</b></span>`;
 }
+function skillChipHTML(label){
+  return `<span class="fchip skill"><span>${esc(label)}</span><b data-skilldel data-val="${esc(label)}">×</b></span>`;
+}
 function openSettings(){
   const offKw=new Set(lc(prefs.disabled.kw)), offCity=new Set(lc(prefs.disabled.city));
   const words=[...DEF.title_keywords,...DEF.medical_keywords,...DEF.level_tokens];
@@ -219,15 +235,21 @@ function openSettings(){
     + prefs.added.city.map(c=>chip(c,false,false,"city")).join("");
   const incKwChips=prefs.include.kw.map(w=>incChipHTML(w,"inckw")).join("") || `<span class="hint">none — showing all titles</span>`;
   const incCityChips=prefs.include.city.map(c=>incChipHTML(c,"inccity")).join("") || `<span class="hint">none — any location</span>`;
+  const skillChips=prefs.skills.map(s=>skillChipHTML(s)).join("") || `<span class="hint">none — not filtering by skill</span>`;
+  const sugg=(DEF.profile_skills||[]).filter(s=>!has(prefs.skills,s)).slice(0,12)
+    .map(s=>`<button class="suggb" data-skilladd="${esc(s)}">+ ${esc(s)}</button>`).join("");
+  const suggBlock = sugg ? `<div class="suggrow"><span class="hint2">Suggestions:</span>${sugg}</div>` : "";
   const coreLabel=((BUILTIN.find(b=>b.f==="strong")||{}).label)||"Core";
+  const coreTerms=(DEF.core_titles||[]).map(esc).join(", ");
+  const bridgeTerms=(DEF.bridge_titles||[]).map(esc).join(", ");
   const desc={all:"Clears all filters — shows everything.",tulsa:"On-site roles in the Tulsa metro.",
     remote:"Fully remote roles.",entry:"Junior / new-grad-friendly roles.",
-    strong:coreLabel+": titles that closely match your field (set strictness below).",
+    strong:coreLabel+": job titles that closely match your field (see below).",
     saved:"Jobs you’ve starred."};
   const legend=[{f:"all",label:ALL_LABEL.trim()},...BUILTIN]
     .map(b=>`<div class="lg"><b>${esc(b.label)}</b><span>${esc(desc[b.f]||"")}</span></div>`).join("");
   const cm=prefs.coreMin!=null?prefs.coreMin:17.5;
-  const seg=[["Looser",12.5],["Balanced",17.5],["Stricter",21.5]]
+  const seg=[["Looser",9],["Balanced",17.5],["Stricter",21.5]]
     .map(([t,v])=>`<button class="segb ${Math.abs(cm-v)<0.01?"on":""}" data-core="${v}">${t}</button>`).join("");
   el("#settingsCard").innerHTML=`
     <h2>Filters</h2>
@@ -237,9 +259,10 @@ function openSettings(){
       <h3 class="grp">What the chips mean</h3>
       <div class="legend">${legend}</div>
       <div class="core-edit">
-        <label>“${esc(coreLabel)}” strictness</label>
+        <label>“${esc(coreLabel)}” — what counts as core</label>
+        <p class="hint">Scored on the job <b>title</b>.${coreTerms?` Core titles include: <b>${coreTerms}</b>.`:""}${bridgeTerms?` Bridge / adjacent roles: ${bridgeTerms}.`:""}</p>
         <div class="seg">${seg}</div>
-        <p class="hint">How closely a job title must match your field to count as ${esc(coreLabel)}.</p>
+        <p class="hint">Stricter = core titles only · Balanced = core + bridge titles · Looser = also titles mentioned anywhere in the posting.</p>
       </div>
     </div>
 
@@ -248,20 +271,28 @@ function openSettings(){
       <p class="hint">If any are set, a job must match at least one of them to appear.</p>
       <div class="sub"><label>Title words</label>
         <div class="chiplist" id="inckwlist">${incKwChips}</div>
-        <div class="addrow"><input id="inckwadd" placeholder="e.g. designer"><button data-add="inckw">Add</button></div></div>
+        <div class="addrow"><input id="inckwadd" placeholder="title word to require"><button data-add="inckw">Add</button></div></div>
       <div class="sub"><label>Cities</label>
         <div class="chiplist" id="inccitylist">${incCityChips}</div>
-        <div class="addrow"><input id="inccityadd" placeholder="e.g. austin"><button data-add="inccity">Add</button></div></div>
+        <div class="addrow"><input id="inccityadd" placeholder="city to require"><button data-add="inccity">Add</button></div></div>
+    </div>
+
+    <div class="set-group">
+      <h3 class="grp">Required skills</h3>
+      <p class="hint">Show only postings that mention a skill (searches the whole job text). Matches any if you add several.</p>
+      <div class="chiplist" id="skilllist">${skillChips}</div>
+      <div class="addrow"><input id="skilladd" placeholder="skill, e.g. c++"><button data-add="skill">Add</button></div>
+      ${suggBlock}
     </div>
 
     <div class="set-group">
       <h3 class="grp">Hide · exclude</h3>
       <div class="sub"><label>Title words <span class="hint2">(tap a default’s × to turn it off)</span></label>
         <div class="chiplist" id="kwlist">${wordChips}</div>
-        <div class="addrow"><input id="kwadd" placeholder="e.g. senior"><button data-add="kw">Add</button></div></div>
+        <div class="addrow"><input id="kwadd" placeholder="title word to hide"><button data-add="kw">Add</button></div></div>
       <div class="sub"><label>Cities <span class="hint2">(on-site only — remote &amp; Tulsa always kept)</span></label>
         <div class="chiplist" id="citylist">${cityChips}</div>
-        <div class="addrow"><input id="cityadd" placeholder="e.g. wichita"><button data-add="city">Add</button></div></div>
+        <div class="addrow"><input id="cityadd" placeholder="city to hide"><button data-add="city">Add</button></div></div>
     </div>
 
     <div class="set-group">
@@ -286,7 +317,7 @@ function toggleDefault(kind,val){
 
 /* custom-criteria chips on the filter row: pause/resume or delete a criterion */
 function toggleCustom(kind,val){
-  const bucket={addkw:"addkw",addcity:"addcity",inckw:"inckw",inccity:"inccity"}[kind];
+  const bucket={addkw:"addkw",addcity:"addcity",inckw:"inckw",inccity:"inccity",skill:"skill"}[kind];
   if(!bucket) return;
   has(prefs.off[bucket],val) ? drop(prefs.off[bucket],val) : prefs.off[bucket].push(val);
   savePrefs(); render();
@@ -297,6 +328,7 @@ function removeCustom(kind,val){
   else if(kind==="addcity"){ drop(prefs.added.city,val); drop(prefs.off.addcity,val); }
   else if(kind==="inckw"){ drop(prefs.include.kw,val); drop(prefs.off.inckw,val); }
   else if(kind==="inccity"){ drop(prefs.include.city,val); drop(prefs.off.inccity,val); }
+  else if(kind==="skill"){ drop(prefs.skills,val); drop(prefs.off.skill,val); }
   else if(kind==="delkw"){ drop(prefs.disabled.kw,val); }
   else if(kind==="delcity"){ drop(prefs.disabled.city,val); }
   savePrefs(); render();
@@ -314,19 +346,26 @@ document.addEventListener("click",(e)=>{
   const incdel=e.target.closest("[data-incdel]");
   if(incdel){ const k=incdel.dataset.incdel; drop(k==="inckw"?prefs.include.kw:prefs.include.city, incdel.dataset.val);
     savePrefs(); openSettings(); render(); return; }
+  const skdel=e.target.closest("[data-skilldel]");
+  if(skdel){ drop(prefs.skills, skdel.dataset.val); drop(prefs.off.skill, skdel.dataset.val);
+    savePrefs(); openSettings(); render(); return; }
+  const skadd=e.target.closest("[data-skilladd]");
+  if(skadd){ const v=skadd.dataset.skilladd; if(v&&!has(prefs.skills,v)) prefs.skills.push(v);
+    savePrefs(); openSettings(); render(); return; }
   const add=e.target.closest("[data-add]");
   if(add){ const kind=add.dataset.add;
-    const inputId={kw:"#kwadd",city:"#cityadd",inckw:"#inckwadd",inccity:"#inccityadd"}[kind];
+    const inputId={kw:"#kwadd",city:"#cityadd",inckw:"#inckwadd",inccity:"#inccityadd",skill:"#skilladd"}[kind];
     const inp=el(inputId); const v=(inp&&inp.value||"").trim();
     if(v){
       if(kind==="kw") prefs.added.kw.push(v);
       else if(kind==="city") prefs.added.city.push(v);
       else if(kind==="inckw") prefs.include.kw.push(v);
       else if(kind==="inccity") prefs.include.city.push(v);
+      else if(kind==="skill"){ if(!has(prefs.skills,v)) prefs.skills.push(v); }
       savePrefs(); openSettings(); render();
     } return; }
   if(e.target.id==="resetFilters"){ prefs.disabled={kw:[],city:[]}; prefs.added={kw:[],city:[]};
-    prefs.include={kw:[],city:[]}; prefs.off={addkw:[],addcity:[],inckw:[],inccity:[]};
+    prefs.include={kw:[],city:[]}; prefs.skills=[]; prefs.off={addkw:[],addcity:[],inckw:[],inccity:[],skill:[]};
     prefs.coreMin=17.5; prefs.remoteOnly=false; prefs.showHidden=false; savePrefs(); openSettings(); render(); return; }
   const star=e.target.closest("[data-star]");
   if(star){ const k=star.dataset.star; saved.has(k)?saved.delete(k):saved.add(k); persistSaved(); render(); return; }
