@@ -25,6 +25,7 @@ body{margin:0;background:linear-gradient(180deg,#0b1020,#0a0e1c 40%);color:var(-
   padding:8px 14px;border-radius:999px;font-size:13px;font-weight:600}
 .chip.active{background:var(--accent);color:#04201c;border-color:var(--accent)}
 .chip-div{flex:0 0 1px;width:1px;align-self:center;height:20px;background:var(--line);margin:0 4px}
+.filterhint{font-size:11px;color:var(--mut);margin:-4px 0 0;padding:0 16px 10px}
 .chip.cust{border-style:dashed;display:inline-flex;align-items:center;gap:7px}
 .chip.cust .px{font-size:11px;font-weight:800;opacity:.85;border-left:1px solid currentColor;padding-left:7px}
 .chip.cust.paused{opacity:.45;background:transparent}

@@ -115,8 +115,8 @@ function customChips(){
   if(prefs.remoteOnly) out.push(custChip("cust-on","remoteOnly","","Remote only",false));
   for(const w of prefs.added.kw)    out.push(custChip("cust-hide","addkw",w,`Hiding “${esc(w)}”`,true));
   for(const c of prefs.added.city)  out.push(custChip("cust-hide","addcity",c,`Hiding “${esc(c)}”`,true));
-  for(const w of prefs.include.kw)  out.push(custChip("cust-inc","inckw",w,`Only “${esc(w)}”`,true));
-  for(const c of prefs.include.city)out.push(custChip("cust-inc","inccity",c,`Only “${esc(c)}”`,true));
+  for(const w of prefs.include.kw)  out.push(custChip("cust-inc","inckw",w,`“${esc(w)}”`,true));
+  for(const c of prefs.include.city)out.push(custChip("cust-inc","inccity",c,`“${esc(c)}”`,true));
   for(const w of prefs.disabled.kw) out.push(custChip("cust-show","delkw",w,`Showing “${esc(w)}”`,false));
   for(const c of prefs.disabled.city)out.push(custChip("cust-show","delcity",c,`Showing “${esc(c)}”`,false));
   return out;
@@ -126,6 +126,8 @@ function renderFilters(){
     .concat(BUILTIN.map(b=>`<button class="chip ${ACTIVE.has(b.f)?"active":""}" data-f="${b.f}">${esc(b.label)}</button>`));
   const cust=customChips();
   el("#filters").innerHTML = builtin.join("") + (cust.length ? `<span class="chip-div" aria-hidden="true"></span>`+cust.join("") : "");
+  const hintEl=el("#filterhint");
+  if(hintEl){ hintEl.textContent = cust.length ? "Tap a custom pill to mute or un-mute it · ✕ removes it" : ""; hintEl.style.display = cust.length ? "" : "none"; }
 }
 
 function briefing(){
