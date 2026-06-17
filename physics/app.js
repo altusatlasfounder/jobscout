@@ -240,8 +240,8 @@ function openSettings(){
     .map(s=>`<button class="suggb" data-skilladd="${esc(s)}">+ ${esc(s)}</button>`).join("");
   const suggBlock = sugg ? `<div class="suggrow"><span class="hint2">Suggestions:</span>${sugg}</div>` : "";
   const coreLabel=((BUILTIN.find(b=>b.f==="strong")||{}).label)||"Core";
-  const coreTerms=(DEF.core_titles||[]).map(esc).join(", ");
-  const bridgeTerms=(DEF.bridge_titles||[]).map(esc).join(", ");
+  const coreEx=(DEF.core_titles||[]).slice(0,3).join(", ");
+  const bridgeEx=(DEF.bridge_titles||[]).slice(0,2).join(", ");
   const desc={all:"Clears all filters — shows everything.",tulsa:"On-site roles in the Tulsa metro.",
     remote:"Fully remote roles.",entry:"Junior / new-grad-friendly roles.",
     strong:coreLabel+": job titles that closely match your field (see below).",
@@ -251,6 +251,11 @@ function openSettings(){
   const cm=prefs.coreMin!=null?prefs.coreMin:17.5;
   const seg=[["Looser",9],["Balanced",17.5],["Stricter",21.5]]
     .map(([t,v])=>`<button class="segb ${Math.abs(cm-v)<0.01?"on":""}" data-core="${v}">${t}</button>`).join("");
+  const lvl={
+    "9":{n:"Looser",t:`the widest net — shows any job that mentions your field <i>somewhere</i> in the posting, even when the job title isn’t an obvious match. More results, looser fit.`},
+    "17.5":{n:"Balanced",t:`a sensible middle — jobs whose <b>title</b> is clearly in your field${coreEx?` (e.g. ${esc(coreEx)})`:""} or a close cousin${bridgeEx?` (e.g. ${esc(bridgeEx)})`:""}.`},
+    "21.5":{n:"Stricter",t:`only the closest matches — jobs whose <b>title</b> is squarely your field${coreEx?` (e.g. ${esc(coreEx)})`:""}. Fewer results, tightest fit.`}};
+  const cur=lvl[String(cm)]||lvl["17.5"];
   el("#settingsCard").innerHTML=`
     <h2>Filters</h2>
     <p class="jc-co">Tap chips on the home screen to filter — they combine. Changes here save on this device and show as pills on the filter row.</p>
@@ -259,10 +264,10 @@ function openSettings(){
       <h3 class="grp">What the chips mean</h3>
       <div class="legend">${legend}</div>
       <div class="core-edit">
-        <label>“${esc(coreLabel)}” — what counts as core</label>
-        <p class="hint">Scored on the job <b>title</b>.${coreTerms?` Core titles include: <b>${coreTerms}</b>.`:""}${bridgeTerms?` Bridge / adjacent roles: ${bridgeTerms}.`:""}</p>
+        <label>The “${esc(coreLabel)}” chip shows jobs that match your field.</label>
+        <p class="hint">Choose how strict that match should be:</p>
         <div class="seg">${seg}</div>
-        <p class="hint">Stricter = core titles only · Balanced = core + bridge titles · Looser = also titles mentioned anywhere in the posting.</p>
+        <p class="core-desc"><b>${cur.n}</b> — ${cur.t}</p>
       </div>
     </div>
 
