@@ -85,6 +85,21 @@ body{margin:0;background:linear-gradient(180deg,#0b1020,#0a0e1c 40%);color:var(-
 .fchip b{cursor:pointer;color:var(--bad);font-weight:700}
 .fchip.inc{border-color:#3b7a52}
 .inc-sec h3{color:#7ef0c2}
+.set-group{margin:16px 0;padding-top:12px;border-top:1px solid var(--line)}
+.set-group .grp{font-size:13px;color:var(--accent);margin:0 0 8px;font-weight:700}
+.legend{display:flex;flex-direction:column;gap:6px;margin-bottom:12px}
+.lg{display:flex;gap:10px;font-size:12px;align-items:baseline}
+.lg b{flex:0 0 94px;color:var(--txt)}
+.lg span{color:var(--mut);flex:1}
+.core-edit{background:#11182f;border:1px solid var(--line);border-radius:12px;padding:10px 12px}
+.core-edit>label{display:block;font-size:12px;font-weight:700;color:var(--txt);margin-bottom:8px}
+.seg{display:flex;gap:6px}
+.segb{flex:1;background:var(--bg2);border:1px solid var(--line);color:var(--mut);border-radius:10px;padding:9px 6px;font-size:12px;font-weight:600;cursor:pointer}
+.segb.on{background:var(--accent);color:#04201c;border-color:var(--accent)}
+.core-edit .hint{margin:8px 0 0}
+.sub{margin:10px 0}
+.sub>label{display:block;font-size:12px;color:var(--txt);margin:0 0 6px;font-weight:600}
+.hint2{font-weight:400;color:#5b659a}
 .addrow{display:flex;gap:8px}
 .addrow input{flex:1;background:#0e1430;border:1px solid var(--line);color:var(--txt);
   border-radius:10px;padding:10px;font-size:13px}

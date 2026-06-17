@@ -12,7 +12,7 @@ const ACTIVE = new Set();
 const saved = new Set(JSON.parse(localStorage.getItem(SAVED_KEY) || "[]"));
 const prefs = Object.assign(
   {disabled:{kw:[],city:[]}, added:{kw:[],city:[]}, include:{kw:[],city:[]},
-   off:{addkw:[],addcity:[],inckw:[],inccity:[]}, remoteOnly:false, showHidden:false},
+   off:{addkw:[],addcity:[],inckw:[],inccity:[]}, coreMin:17.5, remoteOnly:false, showHidden:false},
   JSON.parse(localStorage.getItem(PREF_KEY) || "{}"));
 /* backfill nested shapes for prefs saved by older versions */
 prefs.disabled = Object.assign({kw:[],city:[]}, prefs.disabled||{});
@@ -91,7 +91,7 @@ function passesFilter(j,f){
   if(f==="tulsa") return isTulsa(j);
   if(f==="remote") return j.remote_type==="remote";
   if(f==="entry") return j.seniority==="entry"||j.seniority==="intern"||(j.sub_scores&&j.sub_scores.entry>=12);
-  if(f==="strong") return j.sub_scores && j.sub_scores.title>=17.5;
+  if(f==="strong") return j.sub_scores && j.sub_scores.title>=(prefs.coreMin!=null?prefs.coreMin:17.5);
   if(f==="saved") return saved.has(keyOf(j));
   return true;
 }
@@ -219,34 +219,58 @@ function openSettings(){
     + prefs.added.city.map(c=>chip(c,false,false,"city")).join("");
   const incKwChips=prefs.include.kw.map(w=>incChipHTML(w,"inckw")).join("") || `<span class="hint">none — showing all titles</span>`;
   const incCityChips=prefs.include.city.map(c=>incChipHTML(c,"inccity")).join("") || `<span class="hint">none — any location</span>`;
+  const coreLabel=((BUILTIN.find(b=>b.f==="strong")||{}).label)||"Core";
+  const desc={all:"Clears all filters — shows everything.",tulsa:"On-site roles in the Tulsa metro.",
+    remote:"Fully remote roles.",entry:"Junior / new-grad-friendly roles.",
+    strong:coreLabel+": titles that closely match your field (set strictness below).",
+    saved:"Jobs you’ve starred."};
+  const legend=[{f:"all",label:ALL_LABEL.trim()},...BUILTIN]
+    .map(b=>`<div class="lg"><b>${esc(b.label)}</b><span>${esc(desc[b.f]||"")}</span></div>`).join("");
+  const cm=prefs.coreMin!=null?prefs.coreMin:17.5;
+  const seg=[["Looser",12.5],["Balanced",17.5],["Stricter",21.5]]
+    .map(([t,v])=>`<button class="segb ${Math.abs(cm-v)<0.01?"on":""}" data-core="${v}">${t}</button>`).join("");
   el("#settingsCard").innerHTML=`
     <h2>Filters</h2>
-    <p class="jc-co">Edits apply instantly, save on this device, and appear as chips on the filter row.</p>
-    <div class="set-sec inc-sec"><h3>Must include — title words</h3>
-      <p class="hint">If set, only jobs whose title contains at least one of these are shown.</p>
-      <div class="chiplist" id="inckwlist">${incKwChips}</div>
-      <div class="addrow"><input id="inckwadd" placeholder="add a word (e.g. optics)"><button data-add="inckw">Add</button></div>
+    <p class="jc-co">Tap chips on the home screen to filter — they combine. Changes here save on this device and show as pills on the filter row.</p>
+
+    <div class="set-group">
+      <h3 class="grp">What the chips mean</h3>
+      <div class="legend">${legend}</div>
+      <div class="core-edit">
+        <label>“${esc(coreLabel)}” strictness</label>
+        <div class="seg">${seg}</div>
+        <p class="hint">How closely a job title must match your field to count as ${esc(coreLabel)}.</p>
+      </div>
     </div>
-    <div class="set-sec inc-sec"><h3>Must include — cities</h3>
-      <p class="hint">If set, only jobs in at least one of these locations are shown.</p>
-      <div class="chiplist" id="inccitylist">${incCityChips}</div>
-      <div class="addrow"><input id="inccityadd" placeholder="add a city (e.g. dallas)"><button data-add="inccity">Add</button></div>
+
+    <div class="set-group">
+      <h3 class="grp">Show only · must include</h3>
+      <p class="hint">If any are set, a job must match at least one of them to appear.</p>
+      <div class="sub"><label>Title words</label>
+        <div class="chiplist" id="inckwlist">${incKwChips}</div>
+        <div class="addrow"><input id="inckwadd" placeholder="e.g. optics"><button data-add="inckw">Add</button></div></div>
+      <div class="sub"><label>Cities</label>
+        <div class="chiplist" id="inccitylist">${incCityChips}</div>
+        <div class="addrow"><input id="inccityadd" placeholder="e.g. dallas"><button data-add="inccity">Add</button></div></div>
     </div>
-    <div class="set-sec"><h3>Excluded title words</h3>
-      <p class="hint">Jobs whose title contains any of these are hidden. Tap × to toggle a default off, or add your own.</p>
-      <div class="chiplist" id="kwlist">${wordChips}</div>
-      <div class="addrow"><input id="kwadd" placeholder="add a word (e.g. senior)"><button data-add="kw">Add</button></div>
+
+    <div class="set-group">
+      <h3 class="grp">Hide · exclude</h3>
+      <div class="sub"><label>Title words <span class="hint2">(tap a default’s × to turn it off)</span></label>
+        <div class="chiplist" id="kwlist">${wordChips}</div>
+        <div class="addrow"><input id="kwadd" placeholder="e.g. welder"><button data-add="kw">Add</button></div></div>
+      <div class="sub"><label>Cities <span class="hint2">(on-site only — remote &amp; Tulsa always kept)</span></label>
+        <div class="chiplist" id="citylist">${cityChips}</div>
+        <div class="addrow"><input id="cityadd" placeholder="e.g. wichita"><button data-add="city">Add</button></div></div>
     </div>
-    <div class="set-sec"><h3>Excluded cities (non-remote)</h3>
-      <p class="hint">Onsite jobs in these cities are hidden. Remote jobs and anything in the Tulsa metro are always kept.</p>
-      <div class="chiplist" id="citylist">${cityChips}</div>
-      <div class="addrow"><input id="cityadd" placeholder="add a city (e.g. wichita)"><button data-add="city">Add</button></div>
-    </div>
-    <div class="set-sec">
+
+    <div class="set-group">
+      <h3 class="grp">Options</h3>
       <div class="toggle"><span>Remote-only</span><button class="switch ${prefs.remoteOnly?"on":""}" data-sw="remoteOnly"><i></i></button></div>
       <div class="toggle"><span>Show hidden jobs (dimmed)</span><button class="switch ${prefs.showHidden?"on":""}" data-sw="showHidden"><i></i></button></div>
     </div>
-    <button class="resetbtn" id="resetFilters">Reset filters to defaults</button>
+
+    <button class="resetbtn" id="resetFilters">Reset all to defaults</button>
     <button class="closebtn" data-close="settings">Close</button>`;
   el("#settings").classList.remove("hidden");
 }
@@ -283,6 +307,8 @@ document.addEventListener("click",(e)=>{
   if(cl){ const t=el("#"+cl.dataset.close); if(t) t.classList.add("hidden"); return; }
   const sw=e.target.closest("[data-sw]");
   if(sw){ prefs[sw.dataset.sw]=!prefs[sw.dataset.sw]; savePrefs(); openSettings(); render(); return; }
+  const core=e.target.closest("[data-core]");
+  if(core){ prefs.coreMin=parseFloat(core.dataset.core); savePrefs(); openSettings(); render(); return; }
   const tog=e.target.closest("[data-tog]");
   if(tog){ toggleDefault(tog.dataset.tog,tog.dataset.val); return; }
   const incdel=e.target.closest("[data-incdel]");
@@ -301,7 +327,7 @@ document.addEventListener("click",(e)=>{
     } return; }
   if(e.target.id==="resetFilters"){ prefs.disabled={kw:[],city:[]}; prefs.added={kw:[],city:[]};
     prefs.include={kw:[],city:[]}; prefs.off={addkw:[],addcity:[],inckw:[],inccity:[]};
-    prefs.remoteOnly=false; prefs.showHidden=false; savePrefs(); openSettings(); render(); return; }
+    prefs.coreMin=17.5; prefs.remoteOnly=false; prefs.showHidden=false; savePrefs(); openSettings(); render(); return; }
   const star=e.target.closest("[data-star]");
   if(star){ const k=star.dataset.star; saved.has(k)?saved.delete(k):saved.add(k); persistSaved(); render(); return; }
   const cardEl=e.target.closest(".jobcard");
