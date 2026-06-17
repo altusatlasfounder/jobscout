@@ -18,6 +18,17 @@ function money(j){ if(!j.salary_min) return null;
 function isTulsa(j){ const t=(j.location_text+" "+(j.city||"")+" "+(j.state||"")).toLowerCase();
   return j.remote_type!=="remote" && /tulsa|broken arrow|owasso|bixby|sand springs|jenks|catoosa|sapulpa|glenpool|collinsville|coweta|wagoner|skiatook/.test(t); }
 
+/* A "search" entry is an aggregator query, not a specific posting — its link
+   opens current matching results on a job board, so we label it honestly. */
+function isSearch(j){ return (j.source||"").toLowerCase().startsWith("search:"); }
+function searchSite(j){
+  const s=(j.source||"").split(":")[1]||"";
+  const names={"talent.com":"Talent.com",indeed:"Indeed",glassdoor:"Glassdoor",ziprecruiter:"ZipRecruiter",linkedin:"LinkedIn",google:"Google Jobs"};
+  return names[s] || (s ? s.charAt(0).toUpperCase()+s.slice(1) : "job board");
+}
+/* strip fabricated "(NN live openings)" counts from any displayed title */
+function cleanTitle(j){ return (j.title||"").replace(/\s*[\(\[]\s*\d+\+?\s*(live\s+)?(openings?|jobs?|results?|matches?)\s*[\)\]]/ig,"").trim(); }
+
 /* effective (default + user) filter lists */
 function effWords(){
   const base=[...DEF.title_keywords,...DEF.medical_keywords,...DEF.level_tokens].map(x=>x.toLowerCase());
@@ -76,13 +87,14 @@ function card(j){
   if(j.remote_type==="remote") tags.push('<span class="tag rem">Remote</span>');
   const m=money(j); if(m) tags.push(`<span class="tag sal">${m}</span>`);
   if(j.seniority==="entry"||j.seniority==="intern") tags.push('<span class="tag entry">Entry</span>');
+  if(isSearch(j)) tags.push(`<span class="tag search">🔎 ${searchSite(j)} search</span>`);
   if(reason) tags.push(`<span class="tag hide">Hidden: ${reason}</span>`);
   const on=saved.has(keyOf(j))?"on":"";
   const reasons=(j.fit_reason||[]).map(r=>`<li>• ${r}</li>`).join("");
   return `<article class="jobcard ${reason?"hidden-job":""}" data-k="${keyOf(j)}">
     <div class="score" style="--p:${p}"><span>${p}</span></div>
     <div class="jc-body">
-      <p class="jc-title">${j.title}</p>
+      <p class="jc-title">${cleanTitle(j)}</p>
       <p class="jc-co">${j.company_name}</p>
       <div class="tags">${tags.join("")}</div>
       <ul class="reasons">${reasons}</ul>
@@ -107,11 +119,19 @@ function openSheet(j){
   const bars=Object.keys(labels).map(k=>{const v=sub[k]||0,pct=Math.round(v/max[k]*100);
     return `<div class="bar"><span style="width:96px">${labels[k]}</span><div class="track"><div class="fill" style="width:${pct}%"></div></div><span>${v}/${max[k]}</span></div>`;}).join("");
   const m=money(j);
-  el("#sheetCard").innerHTML=`<h2>${j.title}</h2>
+  const search=isSearch(j), site=searchSite(j);
+  const note=search
+    ? `<p class="searchnote">🔎 This is a live <b>${site}</b> search, not a single posting. The link opens current matching roles — titles and counts change as employers post and close jobs.</p>`
+    : "";
+  const btn=search
+    ? `<a class="applybtn" href="${j.apply_url}" target="_blank" rel="noopener">Browse ${site} results →</a>`
+    : `<a class="applybtn" href="${j.apply_url}" target="_blank" rel="noopener">Apply / View posting →</a>`;
+  el("#sheetCard").innerHTML=`<h2>${cleanTitle(j)}</h2>
     <p class="jc-co">${j.company_name} · ${j.location_text||"—"}${m?" · "+m:""}</p>
     <div class="subbars"><b style="font-size:13px;color:var(--accent)">Fit ${Math.round(j.fit_score)}/100</b>${bars}</div>
     <p class="desc">${(j.description||"No description.").slice(0,1200)}</p>
-    <a class="applybtn" href="${j.apply_url}" target="_blank" rel="noopener">Apply / View posting →</a>
+    ${note}
+    ${btn}
     <p class="foot" style="padding:12px 0 0">Source: ${j.source}</p>`;
   el("#sheet").classList.remove("hidden");
 }
